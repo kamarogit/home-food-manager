@@ -3,7 +3,10 @@ export type QuantityStatus = "多い" | "少ない" | "購入必要";
 export type IngredientMaster = {
   id: number;
   name: string;
+  name_reading: string | null;
+  aliases: string | null;
   category_id: number | null;
+  default_storage_location: string | null;
   category_name: string | null;
   is_active: boolean;
   created_at: string;
@@ -11,6 +14,15 @@ export type IngredientMaster = {
 };
 
 export type Category = {
+  id: number;
+  name: string;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type StorageLocation = {
   id: number;
   name: string;
   is_active: boolean;

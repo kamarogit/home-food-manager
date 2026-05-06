@@ -3,6 +3,9 @@
 家庭用食材管理MVP（FastAPI + React + FastMCP）です。  
 このリポジトリは Docker Compose で動作する構成です。
 
+バックエンド・MCP をローカルでテストする場合は **Python 3.13**（`backend` / `mcp_server` の Dockerfile と同じ）を使ってください。  
+[pyenv](https://github.com/pyenv/pyenv) や [asdf](https://asdf-vm.com/) を使う場合、リポジトリ直下の `.python-version` が 3.13 を指します。
+
 ## 起動
 
 ```bash

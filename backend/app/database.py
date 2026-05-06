@@ -26,6 +26,8 @@ def get_db():
 
 
 def run_schema_migrations():
+    default_storage_locations = ["冷蔵", "冷凍", "野菜室", "常温", "棚", "その他"]
+
     with engine.begin() as conn:
         inspector = inspect(conn)
         tables = inspector.get_table_names()
@@ -35,6 +37,12 @@ def run_schema_migrations():
         master_cols = {col["name"] for col in inspector.get_columns("ingredient_masters")}
         if "category_id" not in master_cols:
             conn.execute(text("ALTER TABLE ingredient_masters ADD COLUMN category_id INTEGER"))
+        if "default_storage_location" not in master_cols:
+            conn.execute(text("ALTER TABLE ingredient_masters ADD COLUMN default_storage_location VARCHAR(100)"))
+        if "name_reading" not in master_cols:
+            conn.execute(text("ALTER TABLE ingredient_masters ADD COLUMN name_reading VARCHAR(255)"))
+        if "aliases" not in master_cols:
+            conn.execute(text("ALTER TABLE ingredient_masters ADD COLUMN aliases TEXT"))
 
         if "categories" in inspector.get_table_names():
             category_count = conn.execute(text("SELECT COUNT(*) FROM categories")).scalar_one()
@@ -77,3 +85,45 @@ def run_schema_migrations():
                     ),
                     {"name": cat_name},
                 )
+
+        if "storage_locations" in inspector.get_table_names():
+            storage_count = conn.execute(text("SELECT COUNT(*) FROM storage_locations")).scalar_one()
+            if storage_count == 0:
+                for idx, name in enumerate(default_storage_locations):
+                    conn.execute(
+                        text(
+                            "INSERT INTO storage_locations (name, is_active, sort_order, created_at, updated_at) "
+                            "VALUES (:name, 1, :sort_order, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                        ),
+                        {"name": name, "sort_order": idx},
+                    )
+
+            values_to_migrate = conn.execute(
+                text(
+                    """
+                    SELECT DISTINCT storage_location AS name
+                    FROM ingredients
+                    WHERE storage_location IS NOT NULL AND storage_location <> '' AND storage_location <> '未設定'
+                    UNION
+                    SELECT DISTINCT default_storage_location AS name
+                    FROM ingredient_masters
+                    WHERE default_storage_location IS NOT NULL
+                      AND default_storage_location <> ''
+                      AND default_storage_location <> '未設定'
+                    """
+                )
+            ).fetchall()
+            for row in values_to_migrate:
+                location_name = row[0]
+                existing = conn.execute(
+                    text("SELECT id FROM storage_locations WHERE name = :name"),
+                    {"name": location_name},
+                ).first()
+                if existing is None:
+                    conn.execute(
+                        text(
+                            "INSERT INTO storage_locations (name, is_active, sort_order, created_at, updated_at) "
+                            "VALUES (:name, 1, 999, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                        ),
+                        {"name": location_name},
+                    )

@@ -1,5 +1,6 @@
 from typing import Any
 import os
+from urllib.parse import quote
 
 import httpx
 from fastmcp import FastMCP
@@ -20,6 +21,79 @@ def _request(method: str, path: str, json: dict[str, Any] | None = None):
 @mcp.tool()
 def list_ingredients() -> list[dict[str, Any]]:
     return _request("GET", "/ingredients")
+
+
+@mcp.tool()
+def list_ingredient_masters(
+    include_inactive: bool = False,
+    name: str | None = None,
+) -> list[dict[str, Any]]:
+    query = []
+    if include_inactive:
+        query.append("include_inactive=true")
+    if name:
+        query.append(f"name={quote(name, safe='')}")
+    suffix = f"?{'&'.join(query)}" if query else ""
+    return _request("GET", f"/ingredient-masters{suffix}")
+
+
+@mcp.tool()
+def create_ingredient_master(
+    name: str,
+    category_id: int | None = None,
+    default_storage_location: str | None = None,
+    name_reading: str | None = None,
+    aliases: str | None = None,
+) -> dict[str, Any]:
+    return _request(
+        "POST",
+        "/ingredient-masters",
+        {
+            "name": name,
+            "category_id": category_id,
+            "default_storage_location": default_storage_location,
+            "name_reading": name_reading,
+            "aliases": aliases,
+        },
+    )
+
+
+@mcp.tool()
+def update_ingredient_master(
+    master_id: int,
+    name: str | None = None,
+    name_reading: str | None = None,
+    aliases: str | None = None,
+    category_id: int | None = None,
+    default_storage_location: str | None = None,
+    is_active: bool | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    if name is not None:
+        payload["name"] = name
+    if name_reading is not None:
+        payload["name_reading"] = name_reading
+    if aliases is not None:
+        payload["aliases"] = aliases
+    if category_id is not None:
+        payload["category_id"] = category_id
+    if default_storage_location is not None:
+        payload["default_storage_location"] = default_storage_location
+    if is_active is not None:
+        payload["is_active"] = is_active
+    return _request("PATCH", f"/ingredient-masters/{master_id}", payload)
+
+
+@mcp.tool()
+def list_categories(include_inactive: bool = False) -> list[dict[str, Any]]:
+    suffix = "?include_inactive=true" if include_inactive else ""
+    return _request("GET", f"/categories{suffix}")
+
+
+@mcp.tool()
+def list_storage_locations(include_inactive: bool = False) -> list[dict[str, Any]]:
+    suffix = "?include_inactive=true" if include_inactive else ""
+    return _request("GET", f"/storage-locations{suffix}")
 
 
 @mcp.tool()

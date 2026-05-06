@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 QuantityStatus = Literal["多い", "少ない", "購入必要"]
 
@@ -30,19 +30,63 @@ class CategoryRead(CategoryBase):
     updated_at: datetime
 
 
+class StorageLocationBase(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+
+
+class StorageLocationCreate(StorageLocationBase):
+    sort_order: int = 0
+
+
+class StorageLocationUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    is_active: bool | None = None
+    sort_order: int | None = None
+
+
+class StorageLocationRead(StorageLocationBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    is_active: bool
+    sort_order: int
+    created_at: datetime
+    updated_at: datetime
+
+
 class IngredientMasterBase(BaseModel):
     name: str = Field(min_length=1, max_length=255)
+    name_reading: str | None = Field(default=None, max_length=255)
+    aliases: str | None = Field(default=None, max_length=8192)
     category_id: int | None = None
+    default_storage_location: str | None = Field(default=None, max_length=100)
 
 
 class IngredientMasterCreate(IngredientMasterBase):
-    pass
+    @field_validator("name_reading", "aliases", mode="before")
+    @classmethod
+    def _optional_text_blanks(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        stripped = v.strip()
+        return stripped if stripped else None
 
 
 class IngredientMasterUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
-    category: str | None = None
+    name_reading: str | None = Field(default=None, max_length=255)
+    aliases: str | None = Field(default=None, max_length=8192)
+    category_id: int | None = None
+    default_storage_location: str | None = Field(default=None, max_length=100)
     is_active: bool | None = None
+
+    @field_validator("name_reading", "aliases", mode="before")
+    @classmethod
+    def _optional_text_blanks(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        stripped = v.strip()
+        return stripped if stripped else None
 
 
 class IngredientMasterRead(IngredientMasterBase):

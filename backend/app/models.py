@@ -11,10 +11,13 @@ class IngredientMaster(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
+    name_reading: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    aliases: Mapped[str | None] = mapped_column(Text, nullable=True)
     category: Mapped[str | None] = mapped_column(String(255), nullable=True)
     category_id: Mapped[int | None] = mapped_column(
         ForeignKey("categories.id"), nullable=True, index=True
     )
+    default_storage_location: Mapped[str | None] = mapped_column(String(100), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=datetime.utcnow
@@ -42,6 +45,21 @@ class Category(Base):
     )
 
     ingredient_masters: Mapped[list[IngredientMaster]] = relationship(back_populates="category_ref")
+
+
+class StorageLocation(Base):
+    __tablename__ = "storage_locations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True, index=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
 
 
 class Ingredient(Base):

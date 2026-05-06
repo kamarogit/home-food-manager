@@ -1,6 +1,6 @@
 from datetime import date
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from . import models, schemas
@@ -9,14 +9,22 @@ from . import models, schemas
 def create_ingredient_master(
     db: Session, payload: schemas.IngredientMasterCreate
 ) -> models.IngredientMaster:
-    item = models.IngredientMaster(name=payload.name, category_id=payload.category_id)
+    item = models.IngredientMaster(
+        name=payload.name,
+        name_reading=payload.name_reading,
+        aliases=payload.aliases,
+        category_id=payload.category_id,
+        default_storage_location=payload.default_storage_location,
+    )
     db.add(item)
     db.commit()
     db.refresh(item)
     return item
 
 
-def list_ingredient_masters(db: Session, include_inactive: bool = False):
+def list_ingredient_masters(
+    db: Session, include_inactive: bool = False, name: str | None = None
+):
     stmt = (
         select(models.IngredientMaster)
         .options(joinedload(models.IngredientMaster.category_ref))
@@ -24,6 +32,14 @@ def list_ingredient_masters(db: Session, include_inactive: bool = False):
     )
     if not include_inactive:
         stmt = stmt.where(models.IngredientMaster.is_active.is_(True))
+    if name:
+        stmt = stmt.where(
+            or_(
+                models.IngredientMaster.name.contains(name),
+                models.IngredientMaster.name_reading.contains(name),
+                models.IngredientMaster.aliases.contains(name),
+            )
+        )
     return db.scalars(stmt).all()
 
 
@@ -67,6 +83,45 @@ def get_category(db: Session, category_id: int):
 
 
 def update_category(db: Session, current: models.Category, payload: schemas.CategoryUpdate):
+    updates = payload.model_dump(exclude_unset=True)
+    for key, value in updates.items():
+        setattr(current, key, value)
+    db.commit()
+    db.refresh(current)
+    return current
+
+
+def create_storage_location(
+    db: Session, payload: schemas.StorageLocationCreate
+) -> models.StorageLocation:
+    item = models.StorageLocation(name=payload.name, sort_order=payload.sort_order)
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+def list_storage_locations(db: Session, include_inactive: bool = False):
+    stmt = select(models.StorageLocation).order_by(
+        models.StorageLocation.sort_order.asc(), models.StorageLocation.name.asc()
+    )
+    if not include_inactive:
+        stmt = stmt.where(models.StorageLocation.is_active.is_(True))
+    return db.scalars(stmt).all()
+
+
+def get_storage_location(db: Session, storage_location_id: int):
+    return db.get(models.StorageLocation, storage_location_id)
+
+
+def get_storage_location_by_name(db: Session, name: str):
+    stmt = select(models.StorageLocation).where(models.StorageLocation.name == name)
+    return db.scalar(stmt)
+
+
+def update_storage_location(
+    db: Session, current: models.StorageLocation, payload: schemas.StorageLocationUpdate
+):
     updates = payload.model_dump(exclude_unset=True)
     for key, value in updates.items():
         setattr(current, key, value)
@@ -124,7 +179,13 @@ def search_ingredients(
         .order_by(models.Ingredient.updated_at.desc())
     )
     if name:
-        stmt = stmt.where(models.IngredientMaster.name.contains(name))
+        stmt = stmt.where(
+            or_(
+                models.IngredientMaster.name.contains(name),
+                models.IngredientMaster.name_reading.contains(name),
+                models.IngredientMaster.aliases.contains(name),
+            )
+        )
     if storage_location:
         stmt = stmt.where(models.Ingredient.storage_location == storage_location)
     if quantity_status:
