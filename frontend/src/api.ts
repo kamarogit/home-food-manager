@@ -1,13 +1,26 @@
 import type {
   Category,
   Ingredient,
+  IngredientEvent,
   IngredientMaster,
   IngredientPayload,
   QuantityStatus,
   StorageLocation,
 } from "./types";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
+function resolveApiBase() {
+  const configured = import.meta.env.VITE_API_BASE_URL;
+  if (configured) {
+    return configured;
+  }
+  if (typeof window !== "undefined") {
+    // iPhone等の別端末アクセス時でも、閲覧中のホストに向けてAPIを呼ぶ
+    return `${window.location.protocol}//${window.location.hostname}:8000`;
+  }
+  return "http://127.0.0.1:8000";
+}
+
+const API_BASE = resolveApiBase();
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -31,7 +44,7 @@ export function listIngredientMasters(includeInactive = true) {
 export function createIngredientMaster(
   name: string,
   categoryId: number | null,
-  options?: { name_reading?: string | null; aliases?: string | null },
+  options?: { name_reading?: string | null; aliases?: string | null; default_expiry_days?: number | null },
 ) {
   return request<IngredientMaster>("/ingredient-masters", {
     method: "POST",
@@ -40,6 +53,7 @@ export function createIngredientMaster(
       category_id: categoryId,
       name_reading: options?.name_reading ?? null,
       aliases: options?.aliases ?? null,
+      default_expiry_days: options?.default_expiry_days ?? null,
     }),
   });
 }
@@ -48,7 +62,7 @@ export function createIngredientMasterWithDefault(
   name: string,
   categoryId: number | null,
   defaultStorageLocation: string | null,
-  options?: { name_reading?: string | null; aliases?: string | null },
+  options?: { name_reading?: string | null; aliases?: string | null; default_expiry_days?: number | null },
 ) {
   return request<IngredientMaster>("/ingredient-masters", {
     method: "POST",
@@ -58,6 +72,7 @@ export function createIngredientMasterWithDefault(
       default_storage_location: defaultStorageLocation,
       name_reading: options?.name_reading ?? null,
       aliases: options?.aliases ?? null,
+      default_expiry_days: options?.default_expiry_days ?? null,
     }),
   });
 }
@@ -72,6 +87,7 @@ export function patchIngredientMaster(
       | "aliases"
       | "category_id"
       | "default_storage_location"
+      | "default_expiry_days"
       | "is_active"
     >
   >,
@@ -159,4 +175,8 @@ export function patchIngredient(id: number, payload: Partial<IngredientPayload>)
 
 export function deleteIngredient(id: number) {
   return request<void>(`/ingredients/${id}`, { method: "DELETE" });
+}
+
+export function listIngredientEvents(ingredientId: number) {
+  return request<IngredientEvent[]>(`/ingredients/${ingredientId}/events`);
 }

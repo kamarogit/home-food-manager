@@ -1,0 +1,12 @@
+[
+  { "name": "野菜", "sort_order": 0 },
+  { "name": "肉", "sort_order": 1 },
+  { "name": "魚", "sort_order": 2 },
+  { "name": "乳製品", "sort_order": 3 },
+  { "name": "調味料", "sort_order": 4 },
+  { "name": "飲料", "sort_order": 5 },
+  { "name": "冷凍食品", "sort_order": 6 },
+  { "name": "穀物・麺", "sort_order": 7 },
+  { "name": "缶詰・レトルト", "sort_order": 8 },
+  { "name": "その他", "sort_order": 99 }
+]

@@ -7,6 +7,7 @@ import {
   deleteIngredient,
   listCategories,
   listIngredientMasters,
+  listIngredientEvents,
   listIngredients,
   listStorageLocations,
   patchCategory,
@@ -14,14 +15,21 @@ import {
   patchIngredientMaster,
   patchStorageLocation,
 } from "./api";
-import type { Category, Ingredient, IngredientMaster, QuantityStatus, StorageLocation } from "./types";
+import type {
+  Category,
+  Ingredient,
+  IngredientEvent,
+  IngredientMaster,
+  QuantityStatus,
+  StorageLocation,
+} from "./types";
 import "./App.css";
 
 const quantityOptions: QuantityStatus[] = ["多い", "少ない", "購入必要"];
 type AdminTab = "ingredient" | "master" | "category" | "storage";
 type StockListTab = "purchase" | "expired";
 type InventorySortKey =
-  | "updated_at"
+  | "purchased_date"
   | "storage_location"
   | "expiry_date"
   | "opened_date"
@@ -46,6 +54,98 @@ function resolveInitialTab(): AdminTab {
   return isAdminTab(tabFromStorage) ? tabFromStorage : "ingredient";
 }
 
+function resolveDefaultExpiryDate(defaultExpiryDays: number | null): string {
+  if (defaultExpiryDays === null) {
+    return "";
+  }
+  const base = new Date();
+  base.setHours(0, 0, 0, 0);
+  base.setDate(base.getDate() + defaultExpiryDays);
+  const year = base.getFullYear();
+  const month = String(base.getMonth() + 1).padStart(2, "0");
+  const day = String(base.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/** 開封日からマスタの保存日数ぶん足した消費期限（YYYY-MM-DD） */
+function resolveExpiryYmdFromOpenedDate(openedYmd: string, addDays: number): string {
+  const base = new Date(`${openedYmd}T12:00:00`);
+  if (Number.isNaN(base.getTime())) {
+    return "";
+  }
+  base.setHours(0, 0, 0, 0);
+  base.setDate(base.getDate() + addDays);
+  const year = base.getFullYear();
+  const month = String(base.getMonth() + 1).padStart(2, "0");
+  const day = String(base.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function resolveTodayYmd(): string {
+  const base = new Date();
+  base.setHours(0, 0, 0, 0);
+  const year = base.getFullYear();
+  const month = String(base.getMonth() + 1).padStart(2, "0");
+  const day = String(base.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function resolveDefaultExpiryDateByMasterId(
+  masters: IngredientMaster[],
+  ingredientMasterId: string,
+): string {
+  if (!ingredientMasterId) {
+    return "";
+  }
+  const selectedMaster = masters.find((m) => String(m.id) === ingredientMasterId);
+  if (!selectedMaster) {
+    return "";
+  }
+  return resolveDefaultExpiryDate(selectedMaster.default_expiry_days);
+}
+
+function formatDateYmd(value: string | null | undefined): string {
+  if (!value) {
+    return "";
+  }
+  const matched = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!matched) {
+    return value;
+  }
+  const [, year, month, day] = matched;
+  return `${year}-${month}-${day}`;
+}
+
+function formatDateMd(value: string | null | undefined): string {
+  if (!value) {
+    return "";
+  }
+  const matched = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!matched) {
+    return value;
+  }
+  const [, , month, day] = matched;
+  return `${Number(month)}/${Number(day)}`;
+}
+
+function formatEventTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) {
+    return iso;
+  }
+  return d.toLocaleString("ja-JP", { dateStyle: "short", timeStyle: "medium" });
+}
+
+function formatEventPayload(payload: IngredientEvent["payload"]): string {
+  if (payload === null || payload === undefined) {
+    return "";
+  }
+  if (typeof payload === "string") {
+    return payload;
+  }
+  return JSON.stringify(payload, null, 2);
+}
+
 function App() {
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     if (typeof window === "undefined") {
@@ -66,6 +166,7 @@ function App() {
     id: 0,
     ingredient_master_id: "",
     quantity_status: "少ない" as QuantityStatus,
+    purchased_date: resolveTodayYmd(),
     storage_location: "未設定",
     expiry_date: "",
     opened_date: "",
@@ -78,6 +179,7 @@ function App() {
     aliases: "",
     categoryId: "",
     defaultStorageLocation: "未設定",
+    defaultExpiryDays: "",
   });
   const [categoryForm, setCategoryForm] = useState({ name: "" });
   const [masterFilterCategoryId, setMasterFilterCategoryId] = useState("");
@@ -88,17 +190,22 @@ function App() {
   const [masterQuery, setMasterQuery] = useState("");
   const [showMasterOptions, setShowMasterOptions] = useState(false);
   const [highlightedMasterIndex, setHighlightedMasterIndex] = useState(0);
-  const [inventorySortKey, setInventorySortKey] = useState<InventorySortKey>("updated_at");
+  const [inventorySortKey, setInventorySortKey] = useState<InventorySortKey>("purchased_date");
   const [inventorySortOrder, setInventorySortOrder] = useState<"asc" | "desc">("desc");
   const [inventoryFilterLocation, setInventoryFilterLocation] = useState("");
   const [inventoryFilterQuantity, setInventoryFilterQuantity] = useState("");
   const [inventoryHeaderPanel, setInventoryHeaderPanel] = useState<InventoryHeaderPanel>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [historyIngredient, setHistoryIngredient] = useState<Ingredient | null>(null);
+  const [historyEvents, setHistoryEvents] = useState<IngredientEvent[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [pendingDeleteItem, setPendingDeleteItem] = useState<Ingredient | null>(null);
   const [editForm, setEditForm] = useState({
     id: 0,
     ingredient_master_id: "",
     quantity_status: "少ない" as QuantityStatus,
+    purchased_date: "",
     storage_location: "未設定",
     expiry_date: "",
     opened_date: "",
@@ -175,9 +282,9 @@ function App() {
     const sorted = [...filtered].sort((a, b) => {
       let left = "";
       let right = "";
-      if (inventorySortKey === "updated_at") {
-        left = a.updated_at ?? "";
-        right = b.updated_at ?? "";
+      if (inventorySortKey === "purchased_date") {
+        left = a.purchased_date ?? "0000-00-00";
+        right = b.purchased_date ?? "0000-00-00";
       } else if (inventorySortKey === "storage_location") {
         left = a.storage_location ?? "未設定";
         right = b.storage_location ?? "未設定";
@@ -254,6 +361,7 @@ function App() {
     const payload = {
       ingredient_master_id: Number(form.ingredient_master_id),
       quantity_status: form.quantity_status,
+      purchased_date: form.purchased_date || null,
       storage_location: form.storage_location || null,
       expiry_date: form.expiry_date || null,
       opened_date: form.opened_date || null,
@@ -268,6 +376,7 @@ function App() {
       id: 0,
       ingredient_master_id: "",
       quantity_status: "少ない",
+      purchased_date: resolveTodayYmd(),
       storage_location: "未設定",
       expiry_date: "",
       opened_date: "",
@@ -282,6 +391,7 @@ function App() {
     const categoryId = masterForm.categoryId ? Number(masterForm.categoryId) : null;
     const defaultStorageLocation =
       masterForm.defaultStorageLocation === "未設定" ? null : masterForm.defaultStorageLocation;
+    const defaultExpiryDays = masterForm.defaultExpiryDays.trim() === "" ? null : Number(masterForm.defaultExpiryDays);
     const nameReading = masterForm.nameReading.trim() || null;
     const aliases = masterForm.aliases.trim() || null;
     if (masterForm.id > 0) {
@@ -291,11 +401,13 @@ function App() {
         aliases,
         category_id: categoryId,
         default_storage_location: defaultStorageLocation,
+        default_expiry_days: defaultExpiryDays,
       });
     } else {
       await createIngredientMasterWithDefault(masterForm.name, categoryId, defaultStorageLocation, {
         name_reading: nameReading,
         aliases,
+        default_expiry_days: defaultExpiryDays,
       });
     }
     setMasterForm({
@@ -305,6 +417,7 @@ function App() {
       aliases: "",
       categoryId: "",
       defaultStorageLocation: "未設定",
+      defaultExpiryDays: "",
     });
     await refreshMasters();
   }
@@ -328,6 +441,12 @@ function App() {
       ...p,
       ingredient_master_id: String(master.id),
       storage_location: master.default_storage_location ?? "未設定",
+      purchased_date:
+        p.quantity_status === "購入必要" ? "" : p.purchased_date || resolveTodayYmd(),
+      expiry_date:
+        p.id > 0 || p.expiry_date
+          ? p.expiry_date
+          : resolveDefaultExpiryDate(master.default_expiry_days),
     }));
     setMasterQuery(master.category_name ? `${master.name} (${master.category_name})` : master.name);
     setShowMasterOptions(false);
@@ -349,13 +468,31 @@ function App() {
     return inventorySortOrder === "asc" ? "↑" : "↓";
   }
 
-  function openEditModal(item: Ingredient) {
+  function openHistoryModal(item: Ingredient) {
+    setHistoryIngredient(item);
+    setHistoryEvents([]);
+    setHistoryError(null);
+    setHistoryLoading(true);
+    listIngredientEvents(item.id)
+      .then((evs) => setHistoryEvents(evs))
+      .catch((err) => {
+        setHistoryError(err instanceof Error ? err.message : "履歴の取得に失敗しました");
+      })
+      .finally(() => setHistoryLoading(false));
+  }
+
+  function openEditModal(item: Ingredient, options?: { applyDefaultExpiryIfMissing?: boolean }) {
+    const defaultExpiryDate =
+      options?.applyDefaultExpiryIfMissing && !item.expiry_date
+        ? resolveDefaultExpiryDateByMasterId(masters, String(item.ingredient_master_id))
+        : "";
     setEditForm({
       id: item.id,
       ingredient_master_id: String(item.ingredient_master_id),
       quantity_status: item.quantity_status,
+      purchased_date: item.purchased_date ?? "",
       storage_location: item.storage_location ?? "未設定",
-      expiry_date: item.expiry_date ?? "",
+      expiry_date: item.expiry_date ?? defaultExpiryDate,
       opened_date: item.opened_date ?? "",
       note: item.note ?? "",
     });
@@ -370,6 +507,7 @@ function App() {
     await patchIngredient(editForm.id, {
       ingredient_master_id: Number(editForm.ingredient_master_id),
       quantity_status: editForm.quantity_status,
+      purchased_date: editForm.purchased_date || null,
       storage_location: editForm.storage_location || null,
       expiry_date: editForm.expiry_date || null,
       opened_date: editForm.opened_date || null,
@@ -407,7 +545,7 @@ function App() {
       </section>
 
       <div className="grid">
-        <section className="card">
+        <section className="card card--wide">
           <h2>検索・絞り込み</h2>
           <div className="controls-row">
             <input value={searchName} onChange={(e) => setSearchName(e.target.value)} placeholder="食材名" />
@@ -459,7 +597,7 @@ function App() {
                 type="button"
                 className="secondary"
                 onClick={() => {
-                  setInventorySortKey("updated_at");
+                  setInventorySortKey("purchased_date");
                   setInventorySortOrder("desc");
                   setInventoryFilterLocation("");
                   setInventoryFilterQuantity("");
@@ -472,10 +610,15 @@ function App() {
           )}
           <p className="empty-note">表示件数: {displayedIngredients.length} / 全件: {ingredients.length}</p>
           <div className="table-wrap">
-            <table>
+            <table className="inventory-table">
               <thead>
                 <tr>
                   <th>ID</th>
+                  <th>
+                    <button type="button" className="header-button" onClick={() => toggleInventorySort("purchased_date")}>
+                      購入日 {sortIndicator("purchased_date")}
+                    </button>
+                  </th>
                   <th>
                     <button type="button" className="header-button" onClick={() => toggleInventorySort("ingredient_name")}>
                       食材 {sortIndicator("ingredient_name")}
@@ -522,19 +665,32 @@ function App() {
               <tbody>
                 {displayedIngredients.map((item) => (
                   <tr key={item.id}>
-                    <td>{item.id}</td>
-                    <td>{item.ingredient_name}</td>
-                    <td>{item.quantity_status}</td>
-                    <td>{item.storage_location ?? ""}</td>
-                    <td>{item.expiry_date ?? ""}</td>
-                    <td>{item.opened_date ?? ""}</td>
-                    <td>{item.note ?? ""}</td>
-                    <td>
+                    <td data-label="ID">{item.id}</td>
+                    <td data-label="購入日">
+                      <span className="inventory-date-full">{formatDateYmd(item.purchased_date) || "-"}</span>
+                      <span className="inventory-date-mobile">{formatDateMd(item.purchased_date) || "-"}</span>
+                    </td>
+                    <td data-label="食材">{item.ingredient_name}</td>
+                    <td data-label="残量">{item.quantity_status}</td>
+                    <td data-label="場所">{item.storage_location ?? ""}</td>
+                    <td data-label="期限">
+                      <span className="inventory-date-full">{formatDateYmd(item.expiry_date)}</span>
+                      <span className="inventory-date-mobile">{formatDateMd(item.expiry_date)}</span>
+                    </td>
+                    <td data-label="開封日">
+                      <span className="inventory-date-full">{formatDateYmd(item.opened_date)}</span>
+                      <span className="inventory-date-mobile">{formatDateMd(item.opened_date)}</span>
+                    </td>
+                    <td data-label="メモ">{item.note ?? ""}</td>
+                    <td className="inventory-cell--actions" data-label="操作">
                       <div className="inline-actions">
                         <button
                           onClick={() => openEditModal(item)}
                         >
                           編集
+                        </button>
+                        <button type="button" className="secondary" onClick={() => openHistoryModal(item)}>
+                          履歴
                         </button>
                         <button
                           className="secondary"
@@ -555,7 +711,6 @@ function App() {
         </section>
 
         <section className="card">
-          <h2>購入必要一覧</h2>
           <div className="tab-row">
             <button
               type="button"
@@ -579,7 +734,7 @@ function App() {
                   <li
                     key={item.id}
                     className="clickable-pill"
-                    onClick={() => openEditModal(item)}
+                    onClick={() => openEditModal(item, { applyDefaultExpiryIfMissing: true })}
                     title="クリックで編集"
                   >
                     {item.ingredient_name}（{item.storage_location ?? "未設定"}）
@@ -608,7 +763,6 @@ function App() {
         </section>
 
         <section className="card">
-          <h2>管理タブ</h2>
           <div className="tab-row">
             <button
               type="button"
@@ -702,7 +856,17 @@ function App() {
                 </div>
                 <select
                   value={form.quantity_status}
-                  onChange={(e) => setForm((p) => ({ ...p, quantity_status: e.target.value as QuantityStatus }))}
+                  onChange={(e) =>
+                    setForm((p) => {
+                      const nextStatus = e.target.value as QuantityStatus;
+                      return {
+                        ...p,
+                        quantity_status: nextStatus,
+                        purchased_date:
+                          nextStatus === "購入必要" ? "" : p.purchased_date || resolveTodayYmd(),
+                      };
+                    })
+                  }
                 >
                   {quantityOptions.map((q) => (
                     <option key={q} value={q}>
@@ -721,22 +885,78 @@ function App() {
                   ))}
                 </select>
                 <label>
+                  購入日
+                  <div className="date-input-row">
+                    <input
+                      type="date"
+                      value={form.purchased_date}
+                      onChange={(e) => setForm((p) => ({ ...p, purchased_date: e.target.value }))}
+                    />
+                    <button
+                      type="button"
+                      className="date-clear-button"
+                      aria-label="購入日をクリア"
+                      onClick={() => setForm((p) => ({ ...p, purchased_date: "" }))}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </label>
+                <label>
                   期限
-                  <input
-                    type="date"
-                    value={form.expiry_date}
-                    onChange={(e) => setForm((p) => ({ ...p, expiry_date: e.target.value }))}
-                  />
+                  <div className="date-input-row">
+                    <input
+                      type="date"
+                      value={form.expiry_date}
+                      onChange={(e) => setForm((p) => ({ ...p, expiry_date: e.target.value }))}
+                    />
+                    <button
+                      type="button"
+                      className="date-clear-button"
+                      aria-label="期限をクリア"
+                      onClick={() => setForm((p) => ({ ...p, expiry_date: "" }))}
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </label>
                 <label>
                   開封日
-                  <input
-                    type="date"
-                    value={form.opened_date}
-                    onChange={(e) => setForm((p) => ({ ...p, opened_date: e.target.value }))}
-                  />
+                  <span className="field-hint">マスタの「通常期限（日）」が開封後の日数として期限に反映されます</span>
+                  <div className="date-input-row">
+                    <input
+                      type="date"
+                      value={form.opened_date}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setForm((p) => {
+                          const master = masters.find((m) => String(m.id) === p.ingredient_master_id);
+                          if (!v || master?.default_expiry_days == null) {
+                            return { ...p, opened_date: v };
+                          }
+                          return {
+                            ...p,
+                            opened_date: v,
+                            expiry_date: resolveExpiryYmdFromOpenedDate(v, master.default_expiry_days),
+                          };
+                        });
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="date-clear-button"
+                      aria-label="開封日をクリア"
+                      onClick={() => setForm((p) => ({ ...p, opened_date: "" }))}
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </label>
-                <textarea value={form.note} onChange={(e) => setForm((p) => ({ ...p, note: e.target.value }))} />
+                <textarea
+                  value={form.note}
+                  placeholder="メモ"
+                  onChange={(e) => setForm((p) => ({ ...p, note: e.target.value }))}
+                />
                 <button type="submit">{form.id > 0 ? "更新" : "登録"}</button>
               </form>
             </div>
@@ -787,6 +1007,13 @@ function App() {
                     </option>
                   ))}
                 </select>
+                <input
+                  type="number"
+                  min={0}
+                  value={masterForm.defaultExpiryDays}
+                  onChange={(e) => setMasterForm((p) => ({ ...p, defaultExpiryDays: e.target.value }))}
+                  placeholder="日数（開封日からの期限自動にも使用）"
+                />
                 <button type="submit">{masterForm.id > 0 ? "更新" : "追加"}</button>
                 {masterForm.id > 0 && (
                   <button
@@ -800,6 +1027,7 @@ function App() {
                         aliases: "",
                         categoryId: "",
                         defaultStorageLocation: "未設定",
+                        defaultExpiryDays: "",
                       })
                     }
                   >
@@ -848,7 +1076,8 @@ function App() {
                         <span className="list-row__sub">
                           読み: {m.name_reading ?? "-"} / 別名:{" "}
                           {m.aliases ? m.aliases.replace(/\n/g, "、") : "-"} / カテゴリ: {m.category_name ?? "-"} /
-                          既定保存場所: {m.default_storage_location ?? "未設定"}
+                          既定保存場所: {m.default_storage_location ?? "未設定"} / 通常期限（日・開封後の自動計算にも使用）:{" "}
+                          {m.default_expiry_days === null ? "未設定" : `${m.default_expiry_days}日`}
                         </span>
                       </div>
                       <span className={m.is_active ? "status-badge is-active" : "status-badge is-inactive"}>
@@ -864,6 +1093,8 @@ function App() {
                             aliases: m.aliases ?? "",
                             categoryId: m.category_id ? String(m.category_id) : "",
                             defaultStorageLocation: m.default_storage_location ?? "未設定",
+                            defaultExpiryDays:
+                              m.default_expiry_days === null ? "" : String(m.default_expiry_days),
                           })
                         }
                       >
@@ -992,7 +1223,15 @@ function App() {
               <select
                 value={editForm.quantity_status}
                 onChange={(e) =>
-                  setEditForm((p) => ({ ...p, quantity_status: e.target.value as QuantityStatus }))
+                  setEditForm((p) => {
+                    const nextStatus = e.target.value as QuantityStatus;
+                    return {
+                      ...p,
+                      quantity_status: nextStatus,
+                      purchased_date:
+                        nextStatus === "購入必要" ? "" : p.purchased_date || resolveTodayYmd(),
+                    };
+                  })
                 }
               >
                 {quantityOptions.map((q) => (
@@ -1012,20 +1251,72 @@ function App() {
                 ))}
               </select>
               <label>
+                購入日
+                <div className="date-input-row">
+                  <input
+                    type="date"
+                    value={editForm.purchased_date}
+                    onChange={(e) => setEditForm((p) => ({ ...p, purchased_date: e.target.value }))}
+                  />
+                  <button
+                    type="button"
+                    className="date-clear-button"
+                    aria-label="購入日をクリア"
+                    onClick={() => setEditForm((p) => ({ ...p, purchased_date: "" }))}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </label>
+              <label>
                 期限
-                <input
-                  type="date"
-                  value={editForm.expiry_date}
-                  onChange={(e) => setEditForm((p) => ({ ...p, expiry_date: e.target.value }))}
-                />
+                <div className="date-input-row">
+                  <input
+                    type="date"
+                    value={editForm.expiry_date}
+                    onChange={(e) => setEditForm((p) => ({ ...p, expiry_date: e.target.value }))}
+                  />
+                  <button
+                    type="button"
+                    className="date-clear-button"
+                    aria-label="期限をクリア"
+                    onClick={() => setEditForm((p) => ({ ...p, expiry_date: "" }))}
+                  >
+                    ✕
+                  </button>
+                </div>
               </label>
               <label>
                 開封日
-                <input
-                  type="date"
-                  value={editForm.opened_date}
-                  onChange={(e) => setEditForm((p) => ({ ...p, opened_date: e.target.value }))}
-                />
+                <span className="field-hint">マスタの「通常期限（日）」が開封後の日数として期限に反映されます</span>
+                <div className="date-input-row">
+                  <input
+                    type="date"
+                    value={editForm.opened_date}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setEditForm((p) => {
+                        const master = masters.find((m) => String(m.id) === p.ingredient_master_id);
+                        if (!v || master?.default_expiry_days == null) {
+                          return { ...p, opened_date: v };
+                        }
+                        return {
+                          ...p,
+                          opened_date: v,
+                          expiry_date: resolveExpiryYmdFromOpenedDate(v, master.default_expiry_days),
+                        };
+                      });
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="date-clear-button"
+                    aria-label="開封日をクリア"
+                    onClick={() => setEditForm((p) => ({ ...p, opened_date: "" }))}
+                  >
+                    ✕
+                  </button>
+                </div>
               </label>
               <textarea value={editForm.note} onChange={(e) => setEditForm((p) => ({ ...p, note: e.target.value }))} />
               <div className="inline-actions">
@@ -1035,6 +1326,52 @@ function App() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {historyIngredient && (
+        <div
+          className="modal-backdrop"
+          onClick={() => {
+            setHistoryIngredient(null);
+            setHistoryError(null);
+          }}
+        >
+          <div className="modal-card event-history-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>変更履歴</h3>
+            <p className="empty-note">
+              在庫ID {historyIngredient.id} · {historyIngredient.ingredient_name}
+            </p>
+            {historyLoading && <p className="empty-note">読み込み中…</p>}
+            {historyError && <p className="modal-error">{historyError}</p>}
+            {!historyLoading && !historyError && historyEvents.length === 0 && (
+              <p className="empty-note">履歴がありません。</p>
+            )}
+            <ul className="event-log">
+              {historyEvents.map((ev) => (
+                <li key={ev.id} className="event-log__item">
+                  <div className="event-log__meta">
+                    <strong>{ev.event_type}</strong>
+                    <span> · {formatEventTime(ev.created_at)}</span>
+                  </div>
+                  {ev.payload != null && (
+                    <pre className="event-log__payload">{formatEventPayload(ev.payload)}</pre>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <div className="inline-actions">
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => {
+                  setHistoryIngredient(null);
+                  setHistoryError(null);
+                }}
+              >
+                閉じる
+              </button>
+            </div>
           </div>
         </div>
       )}

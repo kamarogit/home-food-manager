@@ -18,6 +18,7 @@ class IngredientMaster(Base):
         ForeignKey("categories.id"), nullable=True, index=True
     )
     default_storage_location: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    default_expiry_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=datetime.utcnow
@@ -70,6 +71,7 @@ class Ingredient(Base):
         ForeignKey("ingredient_masters.id"), nullable=False, index=True
     )
     quantity_status: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    purchased_date: Mapped[Date | None] = mapped_column(Date, nullable=True, index=True)
     storage_location: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     expiry_date: Mapped[Date | None] = mapped_column(Date, nullable=True)
     opened_date: Mapped[Date | None] = mapped_column(Date, nullable=True)
@@ -82,3 +84,17 @@ class Ingredient(Base):
     )
 
     master: Mapped[IngredientMaster] = relationship(back_populates="ingredients")
+
+
+class IngredientEvent(Base):
+    """在庫の変更履歴（削除後も ingredient_id で参照可能。FKは張らない）。"""
+
+    __tablename__ = "ingredient_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    ingredient_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    event_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    payload: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow, index=True
+    )

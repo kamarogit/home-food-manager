@@ -3,12 +3,18 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./food_manager.db")
 
+_engine_kwargs: dict = {"connect_args": {"check_same_thread": False}}
+# :memory: は接続ごとに別DBになるため、プールを1接続に固定してテストとAPIで共有する
+if ":memory:" in DATABASE_URL:
+    _engine_kwargs["poolclass"] = StaticPool
+
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False},
+    **_engine_kwargs,
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -43,6 +49,30 @@ def run_schema_migrations():
             conn.execute(text("ALTER TABLE ingredient_masters ADD COLUMN name_reading VARCHAR(255)"))
         if "aliases" not in master_cols:
             conn.execute(text("ALTER TABLE ingredient_masters ADD COLUMN aliases TEXT"))
+        if "default_expiry_days" not in master_cols:
+            conn.execute(text("ALTER TABLE ingredient_masters ADD COLUMN default_expiry_days INTEGER"))
+
+        ingredient_cols = {col["name"] for col in inspector.get_columns("ingredients")}
+        if "purchased_date" not in ingredient_cols:
+            conn.execute(text("ALTER TABLE ingredients ADD COLUMN purchased_date DATE"))
+
+        if "ingredient_events" not in tables:
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE ingredient_events (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        ingredient_id INTEGER,
+                        event_type VARCHAR(32) NOT NULL,
+                        payload TEXT,
+                        created_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP)
+                    )
+                    """
+                )
+            )
+            conn.execute(text("CREATE INDEX ix_ingredient_events_ingredient_id ON ingredient_events (ingredient_id)"))
+            conn.execute(text("CREATE INDEX ix_ingredient_events_event_type ON ingredient_events (event_type)"))
+            conn.execute(text("CREATE INDEX ix_ingredient_events_created_at ON ingredient_events (created_at)"))
 
         if "categories" in inspector.get_table_names():
             category_count = conn.execute(text("SELECT COUNT(*) FROM categories")).scalar_one()

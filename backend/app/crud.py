@@ -1,3 +1,4 @@
+import json
 from datetime import date
 
 from sqlalchemy import Select, or_, select
@@ -15,6 +16,7 @@ def create_ingredient_master(
         aliases=payload.aliases,
         category_id=payload.category_id,
         default_storage_location=payload.default_storage_location,
+        default_expiry_days=payload.default_expiry_days,
     )
     db.add(item)
     db.commit()
@@ -161,6 +163,29 @@ def update_ingredient(
 def delete_ingredient(db: Session, current: models.Ingredient):
     db.delete(current)
     db.commit()
+
+
+def append_ingredient_event(
+    db: Session, ingredient_id: int | None, event_type: str, payload: dict | None = None
+) -> models.IngredientEvent:
+    row = models.IngredientEvent(
+        ingredient_id=ingredient_id,
+        event_type=event_type,
+        payload=json.dumps(payload, ensure_ascii=False, default=str) if payload else None,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def list_ingredient_events(db: Session, ingredient_id: int):
+    stmt = (
+        select(models.IngredientEvent)
+        .where(models.IngredientEvent.ingredient_id == ingredient_id)
+        .order_by(models.IngredientEvent.created_at.desc())
+    )
+    return db.scalars(stmt).all()
 
 
 def search_ingredients(

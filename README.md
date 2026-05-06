@@ -16,6 +16,10 @@ docker compose up --build
 - API: `http://localhost:8000`
 - API Docs: `http://localhost:8000/docs`
 
+## 初期データを LLM エージェントに任せる
+
+保存場所・カテゴリ・食材マスタを API 経由で大量登録する手順は、エージェント向けに **[docs/AGENT_BULK_SETUP.md](docs/AGENT_BULK_SETUP.md)** にまとめています。サンプル JSON は **[docs/templates/](docs/templates/)**（`bulk-seed.example.json` など）を参照してください。
+
 ## MCP サーバ起動
 
 MCP サーバは通常起動から分離し、必要なときだけ profile 付きで起動します。

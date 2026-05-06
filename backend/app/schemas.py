@@ -60,6 +60,7 @@ class IngredientMasterBase(BaseModel):
     aliases: str | None = Field(default=None, max_length=8192)
     category_id: int | None = None
     default_storage_location: str | None = Field(default=None, max_length=100)
+    default_expiry_days: int | None = Field(default=None, ge=0, le=3650)
 
 
 class IngredientMasterCreate(IngredientMasterBase):
@@ -78,6 +79,7 @@ class IngredientMasterUpdate(BaseModel):
     aliases: str | None = Field(default=None, max_length=8192)
     category_id: int | None = None
     default_storage_location: str | None = Field(default=None, max_length=100)
+    default_expiry_days: int | None = Field(default=None, ge=0, le=3650)
     is_active: bool | None = None
 
     @field_validator("name_reading", "aliases", mode="before")
@@ -102,6 +104,7 @@ class IngredientMasterRead(IngredientMasterBase):
 class IngredientBase(BaseModel):
     ingredient_master_id: int
     quantity_status: QuantityStatus
+    purchased_date: date | None = None
     storage_location: str | None = None
     expiry_date: date | None = None
     opened_date: date | None = None
@@ -115,6 +118,7 @@ class IngredientCreate(IngredientBase):
 class IngredientUpdate(BaseModel):
     ingredient_master_id: int | None = None
     quantity_status: QuantityStatus | None = None
+    purchased_date: date | None = None
     storage_location: str | None = None
     expiry_date: date | None = None
     opened_date: date | None = None
@@ -129,3 +133,13 @@ class IngredientRead(IngredientBase):
     updated_at: datetime
     ingredient_name: str
     ingredient_category: str | None = None
+
+
+class IngredientEventRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    ingredient_id: int | None
+    event_type: str
+    payload: dict | list | str | None = None
+    created_at: datetime

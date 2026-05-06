@@ -1,0 +1,9 @@
+[
+  { "name": "冷蔵", "sort_order": 0 },
+  { "name": "冷凍", "sort_order": 1 },
+  { "name": "野菜室", "sort_order": 2 },
+  { "name": "常温", "sort_order": 3 },
+  { "name": "棚", "sort_order": 4 },
+  { "name": "調味料ラック", "sort_order": 5 },
+  { "name": "その他", "sort_order": 99 }
+]

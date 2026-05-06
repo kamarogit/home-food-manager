@@ -1,0 +1,241 @@
+{
+  "storage_locations": [
+    { "name": "冷蔵", "sort_order": 0 },
+    { "name": "冷凍", "sort_order": 1 },
+    { "name": "野菜室", "sort_order": 2 },
+    { "name": "常温", "sort_order": 3 },
+    { "name": "棚", "sort_order": 4 },
+    { "name": "調味料ラック", "sort_order": 5 },
+    { "name": "その他", "sort_order": 99 }
+  ],
+  "categories": [
+    { "name": "野菜", "sort_order": 0 },
+    { "name": "肉", "sort_order": 1 },
+    { "name": "魚", "sort_order": 2 },
+    { "name": "乳製品", "sort_order": 3 },
+    { "name": "調味料", "sort_order": 4 },
+    { "name": "飲料", "sort_order": 5 },
+    { "name": "冷凍食品", "sort_order": 6 },
+    { "name": "穀物・麺", "sort_order": 7 },
+    { "name": "缶詰・レトルト", "sort_order": 8 },
+    { "name": "その他", "sort_order": 99 }
+  ],
+  "ingredient_masters": [
+    {
+      "name": "玉ねぎ",
+      "category_name": "野菜",
+      "default_storage_location": "野菜室",
+      "default_expiry_days": 30,
+      "name_reading": "たまねぎ",
+      "aliases": "タマネギ\n玉葱"
+    },
+    {
+      "name": "にんにく",
+      "category_name": "野菜",
+      "default_storage_location": "冷蔵",
+      "default_expiry_days": 30,
+      "name_reading": "にんにく",
+      "aliases": "大蒜"
+    },
+    {
+      "name": "しょうが",
+      "category_name": "野菜",
+      "default_storage_location": "冷蔵",
+      "default_expiry_days": 21,
+      "name_reading": "しょうが",
+      "aliases": "生姜"
+    },
+    {
+      "name": "じゃがいも",
+      "category_name": "野菜",
+      "default_storage_location": "常温",
+      "default_expiry_days": 30,
+      "name_reading": "じゃがいも",
+      "aliases": "ジャガイモ\n馬鈴薯"
+    },
+    {
+      "name": "にんじん",
+      "category_name": "野菜",
+      "default_storage_location": "冷蔵",
+      "default_expiry_days": 14,
+      "name_reading": "にんじん",
+      "aliases": "人参\nニンジン"
+    },
+    {
+      "name": "キャベツ",
+      "category_name": "野菜",
+      "default_storage_location": "冷蔵",
+      "default_expiry_days": 7,
+      "name_reading": "きゃべつ",
+      "aliases": "甘蓝"
+    },
+    {
+      "name": "牛乳",
+      "category_name": "乳製品",
+      "default_storage_location": "冷蔵",
+      "default_expiry_days": 7,
+      "name_reading": "ぎゅうにゅう",
+      "aliases": "ミルク"
+    },
+    {
+      "name": "卵",
+      "category_name": "乳製品",
+      "default_storage_location": "冷蔵",
+      "default_expiry_days": 14,
+      "name_reading": "たまご",
+      "aliases": "玉子\negg"
+    },
+    {
+      "name": "バター",
+      "category_name": "乳製品",
+      "default_storage_location": "冷蔵",
+      "default_expiry_days": 30,
+      "name_reading": "ばたー",
+      "aliases": "butter"
+    },
+    {
+      "name": "チーズ",
+      "category_name": "乳製品",
+      "default_storage_location": "冷蔵",
+      "default_expiry_days": 14,
+      "name_reading": "ちーず",
+      "aliases": "cheese"
+    },
+    {
+      "name": "ヨーグルト",
+      "category_name": "乳製品",
+      "default_storage_location": "冷蔵",
+      "default_expiry_days": 14,
+      "name_reading": "よーぐると",
+      "aliases": "yogurt"
+    },
+    {
+      "name": "豚ひき肉",
+      "category_name": "肉",
+      "default_storage_location": "冷凍",
+      "default_expiry_days": 90,
+      "name_reading": "ぶたひきにく",
+      "aliases": "豚挽肉\nミンチ"
+    },
+    {
+      "name": "鶏むね肉",
+      "category_name": "肉",
+      "default_storage_location": "冷凍",
+      "default_expiry_days": 90,
+      "name_reading": "とりむねにく",
+      "aliases": "鶏胸肉"
+    },
+    {
+      "name": "豚ロース薄切り",
+      "category_name": "肉",
+      "default_storage_location": "冷蔵",
+      "default_expiry_days": 3,
+      "name_reading": "ぶたろーすうすぎり",
+      "aliases": null
+    },
+    {
+      "name": "鮭切り身",
+      "category_name": "魚",
+      "default_storage_location": "冷凍",
+      "default_expiry_days": 90,
+      "name_reading": "さけきりみ",
+      "aliases": "サケ\nシャケ"
+    },
+    {
+      "name": "しょうゆ",
+      "category_name": "調味料",
+      "default_storage_location": "調味料ラック",
+      "default_expiry_days": 365,
+      "name_reading": "しょうゆ",
+      "aliases": "醤油\nソイソース"
+    },
+    {
+      "name": "みそ",
+      "category_name": "調味料",
+      "default_storage_location": "冷蔵",
+      "default_expiry_days": 180,
+      "name_reading": "みそ",
+      "aliases": "味噌"
+    },
+    {
+      "name": "砂糖",
+      "category_name": "調味料",
+      "default_storage_location": "調味料ラック",
+      "default_expiry_days": 730,
+      "name_reading": "さとう",
+      "aliases": "グラニュー糖"
+    },
+    {
+      "name": "塩",
+      "category_name": "調味料",
+      "default_storage_location": "調味料ラック",
+      "default_expiry_days": 1095,
+      "name_reading": "しお",
+      "aliases": "食塩"
+    },
+    {
+      "name": "米",
+      "category_name": "穀物・麺",
+      "default_storage_location": "常温",
+      "default_expiry_days": 365,
+      "name_reading": "こめ",
+      "aliases": "お米\n精米"
+    },
+    {
+      "name": "スパゲティ",
+      "category_name": "穀物・麺",
+      "default_storage_location": "棚",
+      "default_expiry_days": 730,
+      "name_reading": "すぱげてぃ",
+      "aliases": "パスタ\n乾麺"
+    },
+    {
+      "name": "食パン",
+      "category_name": "穀物・麺",
+      "default_storage_location": "常温",
+      "default_expiry_days": 5,
+      "name_reading": "しょくぱん",
+      "aliases": "パン"
+    },
+    {
+      "name": "冷凍ピザ",
+      "category_name": "冷凍食品",
+      "default_storage_location": "冷凍",
+      "default_expiry_days": 180,
+      "name_reading": "れいとうぴざ",
+      "aliases": null
+    },
+    {
+      "name": "アイスクリーム",
+      "category_name": "冷凍食品",
+      "default_storage_location": "冷凍",
+      "default_expiry_days": 365,
+      "name_reading": "あいすくりーむ",
+      "aliases": "アイス"
+    },
+    {
+      "name": "缶ビール",
+      "category_name": "飲料",
+      "default_storage_location": "常温",
+      "default_expiry_days": 180,
+      "name_reading": "かんびーる",
+      "aliases": "ビール"
+    },
+    {
+      "name": "紅茶パック",
+      "category_name": "飲料",
+      "default_storage_location": "棚",
+      "default_expiry_days": 365,
+      "name_reading": "こうちゃぱっく",
+      "aliases": "ティーバッグ"
+    },
+    {
+      "name": "カレー缶",
+      "category_name": "缶詰・レトルト",
+      "default_storage_location": "棚",
+      "default_expiry_days": 730,
+      "name_reading": "かれーかん",
+      "aliases": null
+    }
+  ]
+}

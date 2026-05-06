@@ -2,6 +2,11 @@
   box-sizing: border-box;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
   font-family:
@@ -11,17 +16,26 @@ body {
     "Yu Gothic UI",
     sans-serif;
   min-height: 100vh;
+  min-height: -webkit-fill-available;
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: rgba(79, 70, 229, 0.12);
 }
 
 #root {
   min-height: 100vh;
+  min-height: -webkit-fill-available;
 }
 
 .app {
   max-width: 1140px;
   margin: 0 auto;
   padding: 28px 16px 48px;
+  padding-top: max(28px, env(safe-area-inset-top));
+  padding-right: max(16px, env(safe-area-inset-right));
+  padding-bottom: max(48px, env(safe-area-inset-bottom));
+  padding-left: max(16px, env(safe-area-inset-left));
   min-height: 100vh;
+  min-height: -webkit-fill-available;
 }
 
 .app--light {
@@ -89,6 +103,7 @@ body {
   display: grid;
   gap: 14px;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  min-width: 0;
 }
 
 .card {
@@ -98,6 +113,7 @@ body {
   padding: 18px;
   box-shadow: 0 14px 28px rgba(30, 41, 59, 0.08);
   backdrop-filter: blur(8px);
+  min-width: 0;
 }
 
 .card--wide {
@@ -124,6 +140,11 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  align-items: stretch;
+}
+
+.controls-row > * {
+  min-width: 0;
 }
 
 input,
@@ -164,6 +185,7 @@ label {
   right: 0;
   max-height: 220px;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   border-radius: 10px;
   border: 1px solid #d1d5db;
   background: #fff;
@@ -205,8 +227,12 @@ button.combo-box__item.is-highlighted {
   background: rgba(15, 23, 42, 0.5);
   display: grid;
   place-items: center;
-  padding: 16px;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   z-index: 100;
+  -webkit-overflow-scrolling: touch;
+  overflow-y: auto;
+  align-content: center;
 }
 
 .modal-card {
@@ -227,6 +253,69 @@ button.combo-box__item.is-highlighted {
 
 .modal-card h3 {
   margin: 0 0 12px;
+}
+
+.event-history-modal {
+  width: min(640px, 100%);
+}
+
+.modal-error {
+  margin: 0 0 10px;
+  color: #dc2626;
+  font-size: 0.9rem;
+}
+
+.app--dark .modal-error {
+  color: #f87171;
+}
+
+.event-log {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.event-log__item {
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(248, 250, 252, 0.65);
+}
+
+.app--dark .event-log__item {
+  border-color: rgba(71, 85, 105, 0.65);
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.event-log__meta {
+  font-size: 0.88rem;
+  color: #475569;
+}
+
+.app--dark .event-log__meta {
+  color: #94a3b8;
+}
+
+.event-log__payload {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  color: inherit;
+}
+
+.app--dark .event-log__payload {
+  background: rgba(2, 6, 23, 0.45);
+  border-color: rgba(71, 85, 105, 0.6);
 }
 
 input,
@@ -270,6 +359,7 @@ button {
   background: linear-gradient(135deg, #4f46e5, #6366f1);
   box-shadow: 0 7px 18px rgba(79, 70, 229, 0.28);
   transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+  touch-action: manipulation;
 }
 
 button:hover {
@@ -296,7 +386,16 @@ button.danger-button {
 }
 
 .table-wrap {
+  width: 100%;
+  max-width: 100%;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+.inventory-table {
+  width: 100%;
+  min-width: 720px;
 }
 
 .table-toolbar {
@@ -339,6 +438,7 @@ button.header-button {
   box-shadow: none;
   padding: 0;
   font-weight: 600;
+  touch-action: manipulation;
 }
 
 button.header-button:hover {
@@ -380,6 +480,8 @@ tbody tr:hover {
   background: #eef2ff;
   color: #3730a3;
   font-size: 0.88rem;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .pill-list li.clickable-pill {
@@ -412,6 +514,19 @@ tbody tr:hover {
   gap: 10px;
 }
 
+.field-hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.78rem;
+  font-weight: normal;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.app--dark .field-hint {
+  color: #94a3b8;
+}
+
 .field-label {
   display: grid;
   gap: 6px;
@@ -421,6 +536,45 @@ tbody tr:hover {
 .field-label textarea {
   min-height: 4.5rem;
   resize: vertical;
+}
+
+.date-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.date-input-row input[type="date"] {
+  flex: 1;
+  min-width: 0;
+}
+
+button.date-clear-button {
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+  box-shadow: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+}
+
+.app--dark button.date-clear-button {
+  border-color: #475569;
+  color: #cbd5e1;
+}
+
+button.date-clear-button:hover {
+  transform: none;
+  box-shadow: none;
+  opacity: 0.9;
+  background: rgba(148, 163, 184, 0.12);
 }
 
 .compact-list {
@@ -449,6 +603,7 @@ tbody tr:hover {
   gap: 2px;
   min-width: 0;
   flex: 1;
+  overflow-wrap: anywhere;
 }
 
 .list-row__sub {
@@ -503,6 +658,10 @@ tbody tr:hover {
   font-size: 0.9rem;
 }
 
+.inventory-date-mobile {
+  display: none;
+}
+
 .app--dark .empty-note {
   color: #94a3b8;
 }
@@ -538,6 +697,7 @@ button.tab-button {
   color: inherit;
   border: 1px solid #c7d2fe;
   box-shadow: none;
+  touch-action: manipulation;
 }
 
 .app--dark button.tab-button {
@@ -556,7 +716,7 @@ button.tab-button.is-active {
   font-size: 0.95rem;
 }
 
-@media (max-width: 880px) {
+@media (max-width: 880px) and (hover: none) and (pointer: coarse) {
   .app {
     padding-top: 20px;
   }
@@ -574,8 +734,15 @@ button.tab-button.is-active {
     width: 100%;
   }
 
+  .controls-row {
+    flex-direction: column;
+    flex-wrap: nowrap;
+  }
+
   .controls-row > * {
-    flex: 1 1 100%;
+    flex: none;
+    width: 100%;
+    max-width: 100%;
   }
 
   .inline-actions {
@@ -595,9 +762,13 @@ button.tab-button.is-active {
   }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 600px) and (hover: none) and (pointer: coarse) {
   .app {
     padding: 14px 10px 28px;
+    padding-top: max(14px, env(safe-area-inset-top));
+    padding-right: max(10px, env(safe-area-inset-right));
+    padding-bottom: max(28px, env(safe-area-inset-bottom));
+    padding-left: max(10px, env(safe-area-inset-left));
   }
 
   .app__hero,
@@ -606,8 +777,8 @@ button.tab-button.is-active {
     padding: 14px;
   }
 
-  table {
-    min-width: 720px;
+  .app {
+    overflow-x: hidden;
   }
 
   th,
@@ -618,5 +789,54 @@ button.tab-button.is-active {
 
   button {
     width: 100%;
+  }
+
+  button.date-clear-button {
+    width: 34px;
+  }
+
+  /* iOS Safari: フォントが16px未満だと入力フォーカス時に画面が拡大する */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  label {
+    font-size: 0.95rem;
+  }
+
+  .inventory-date-full {
+    display: none;
+  }
+
+  .inventory-date-mobile {
+    display: inline;
+  }
+
+  .inventory-table thead th:first-child,
+  .inventory-table tbody td:first-child {
+    display: none;
+  }
+}
+
+/* タッチ端末: タップ領域を広げる（Apple HIG 44pt 目安） */
+@media (hover: none) and (pointer: coarse) {
+  button,
+  button.tab-button,
+  button.header-button {
+    min-height: 44px;
+  }
+
+  button.combo-box__item {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+
+  .pill-list li.clickable-pill {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
   }
 }

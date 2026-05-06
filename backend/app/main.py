@@ -1,5 +1,6 @@
-from datetime import date
+import json
 import os
+from datetime import date, timedelta
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,9 +14,14 @@ app = FastAPI(title="home-food-manager API")
 
 raw_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
 cors_origins = [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
+cors_origin_regex = os.getenv(
+    "CORS_ORIGIN_REGEX",
+    r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})(:\d+)?$",
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
+    allow_origin_regex=cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -25,6 +31,35 @@ Base.metadata.create_all(bind=engine)
 run_schema_migrations()
 
 
+def ingredient_row_snapshot(item: models.Ingredient) -> dict:
+    return {
+        "ingredient_master_id": item.ingredient_master_id,
+        "ingredient_name": item.master.name if item.master else None,
+        "quantity_status": item.quantity_status,
+        "purchased_date": item.purchased_date.isoformat() if item.purchased_date else None,
+        "storage_location": item.storage_location,
+        "expiry_date": item.expiry_date.isoformat() if item.expiry_date else None,
+        "opened_date": item.opened_date.isoformat() if item.opened_date else None,
+        "note": item.note,
+    }
+
+
+def to_ingredient_event_read(row: models.IngredientEvent) -> schemas.IngredientEventRead:
+    payload_parsed = None
+    if row.payload:
+        try:
+            payload_parsed = json.loads(row.payload)
+        except json.JSONDecodeError:
+            payload_parsed = row.payload
+    return schemas.IngredientEventRead(
+        id=row.id,
+        ingredient_id=row.ingredient_id,
+        event_type=row.event_type,
+        payload=payload_parsed,
+        created_at=row.created_at,
+    )
+
+
 def to_ingredient_read(item: models.Ingredient) -> schemas.IngredientRead:
     return schemas.IngredientRead(
         id=item.id,
@@ -32,6 +67,7 @@ def to_ingredient_read(item: models.Ingredient) -> schemas.IngredientRead:
         ingredient_name=item.master.name,
         ingredient_category=item.master.category_ref.name if item.master.category_ref else item.master.category,
         quantity_status=item.quantity_status,
+        purchased_date=item.purchased_date,
         storage_location=item.storage_location,
         expiry_date=item.expiry_date,
         opened_date=item.opened_date,
@@ -49,6 +85,7 @@ def to_ingredient_master_read(item: models.IngredientMaster) -> schemas.Ingredie
         aliases=item.aliases,
         category_id=item.category_id,
         default_storage_location=item.default_storage_location,
+        default_expiry_days=item.default_expiry_days,
         category_name=item.category_ref.name if item.category_ref else item.category,
         is_active=item.is_active,
         created_at=item.created_at,
@@ -190,10 +227,24 @@ def create_ingredient(payload: schemas.IngredientCreate, db: Session = Depends(g
     if not master or not master.is_active:
         raise HTTPException(status_code=400, detail="有効な食材マスタを指定してください。")
     validate_active_storage_location_or_400(db, payload.storage_location)
-    item = crud.create_ingredient(db, payload)
+    create_payload = payload.model_copy(deep=True)
+    if create_payload.quantity_status == "購入必要":
+        create_payload.purchased_date = None
+    elif create_payload.purchased_date is None:
+        create_payload.purchased_date = date.today()
+    if (
+        create_payload.opened_date is not None
+        and master.default_expiry_days is not None
+        and create_payload.expiry_date is None
+    ):
+        create_payload.expiry_date = create_payload.opened_date + timedelta(
+            days=master.default_expiry_days
+        )
+    item = crud.create_ingredient(db, create_payload)
     item = crud.get_ingredient(db, item.id)
     if item is None:
         raise HTTPException(status_code=500, detail="在庫取得に失敗しました。")
+    crud.append_ingredient_event(db, item.id, "created", {"after": ingredient_row_snapshot(item)})
     return to_ingredient_read(item)
 
 
@@ -225,6 +276,12 @@ def get_ingredient(ingredient_id: int, db: Session = Depends(get_db)):
     return to_ingredient_read(item)
 
 
+@app.get("/ingredients/{ingredient_id}/events", response_model=list[schemas.IngredientEventRead])
+def list_ingredient_events(ingredient_id: int, db: Session = Depends(get_db)):
+    rows = crud.list_ingredient_events(db, ingredient_id)
+    return [to_ingredient_event_read(r) for r in rows]
+
+
 @app.patch("/ingredients/{ingredient_id}", response_model=schemas.IngredientRead)
 def patch_ingredient(
     ingredient_id: int, payload: schemas.IngredientUpdate, db: Session = Depends(get_db)
@@ -232,16 +289,53 @@ def patch_ingredient(
     current = crud.get_ingredient(db, ingredient_id)
     if not current:
         raise HTTPException(status_code=404, detail="在庫が見つかりません。")
+    before = ingredient_row_snapshot(current)
     if payload.ingredient_master_id is not None:
         master = crud.get_ingredient_master(db, payload.ingredient_master_id)
         if not master or not master.is_active:
             raise HTTPException(status_code=400, detail="有効な食材マスタを指定してください。")
     if payload.storage_location is not None:
         validate_active_storage_location_or_400(db, payload.storage_location)
-    item = crud.update_ingredient(db, current, payload)
+    patch_payload = payload.model_copy(deep=True)
+    next_status = patch_payload.quantity_status or current.quantity_status
+    if next_status == "購入必要":
+        patch_payload.purchased_date = None
+    elif current.quantity_status == "購入必要" and patch_payload.purchased_date is None:
+        patch_payload.purchased_date = date.today()
+    target_master_id = (
+        payload.ingredient_master_id
+        if payload.ingredient_master_id is not None
+        else current.ingredient_master_id
+    )
+    target_master = crud.get_ingredient_master(db, target_master_id)
+    opened_changed = (
+        "opened_date" in payload.model_fields_set
+        and patch_payload.opened_date != current.opened_date
+    )
+    expiry_changed = (
+        "expiry_date" in payload.model_fields_set
+        and patch_payload.expiry_date != current.expiry_date
+    )
+    if (
+        patch_payload.opened_date is not None
+        and target_master
+        and target_master.default_expiry_days is not None
+        and opened_changed
+        and not expiry_changed
+    ):
+        patch_payload = patch_payload.model_copy(
+            update={
+                "expiry_date": patch_payload.opened_date
+                + timedelta(days=target_master.default_expiry_days)
+            }
+        )
+    item = crud.update_ingredient(db, current, patch_payload)
     item = crud.get_ingredient(db, item.id)
     if item is None:
         raise HTTPException(status_code=500, detail="在庫取得に失敗しました。")
+    crud.append_ingredient_event(
+        db, item.id, "updated", {"before": before, "after": ingredient_row_snapshot(item)}
+    )
     return to_ingredient_read(item)
 
 
@@ -250,4 +344,7 @@ def remove_ingredient(ingredient_id: int, db: Session = Depends(get_db)):
     current = crud.get_ingredient(db, ingredient_id)
     if not current:
         raise HTTPException(status_code=404, detail="在庫が見つかりません。")
+    crud.append_ingredient_event(
+        db, current.id, "deleted", {"before": ingredient_row_snapshot(current)}
+    )
     crud.delete_ingredient(db, current)
