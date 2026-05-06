@@ -1,5 +1,4 @@
 import json
-import os
 from datetime import date, timedelta
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
@@ -8,20 +7,16 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from . import crud, models, schemas
+from .cors import resolve_cors_settings
 from .database import Base, engine, get_db, run_schema_migrations
 
 app = FastAPI(title="home-food-manager API")
 
-raw_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
-cors_origins = [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
-cors_origin_regex = os.getenv(
-    "CORS_ORIGIN_REGEX",
-    r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})(:\d+)?$",
-)
+_cors_origins, _cors_origin_regex = resolve_cors_settings()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
-    allow_origin_regex=cors_origin_regex,
+    allow_origins=_cors_origins,
+    allow_origin_regex=_cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

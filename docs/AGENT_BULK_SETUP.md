@@ -10,6 +10,7 @@
 - **ベース URL**（例）  
   - Docker Compose 既定: `http://localhost:8000`  
   - 別マシンから: `http://<ホストIP>:8000`
+- **CORS**: フロントと API が別オリジンのときはバックエンドの環境変数 **`CORS_ORIGINS`** にフロントの URL を含める。詳細はリポジトリの `README.md` と `.env.example`。
 - **Content-Type**: `application/json`
 - **文字コード**: UTF-8。食材名・別名は日本語可。
 

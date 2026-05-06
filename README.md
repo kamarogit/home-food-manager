@@ -40,3 +40,11 @@ docker compose down
 ```bash
 docker compose down -v
 ```
+
+## CORS（フロントと API が別ホストのとき）
+
+バックエンドは **`CORS_ORIGINS`**（カンマまたは改行区切り）で許可オリジンを指定します。Docker Compose 既定は `http://localhost:5173` 系。本番で Tunnel 等によりホストが分かれる場合は、**フロントの URL** を `.env` などで設定してください（テンプレート: [`.env.example`](.env.example)）。
+
+- **`CORS_ORIGIN_REGEX`**: 未設定時のみ、ローカル／LAN 向けの既定正規表現が有効。本番でオリジン列挙だけにしたい場合は、コンテナ環境変数 **`CORS_ORIGIN_REGEX=`**（空）を渡す。
+
+フロント側は **`VITE_API_BASE_URL`** で API のベース URL を指定（ビルド時に埋め込み）。未設定時は開発用に「同一ホスト名の `:8000`」へ向きます。

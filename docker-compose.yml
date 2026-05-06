@@ -5,6 +5,7 @@ services:
     container_name: home-food-backend
     environment:
       - DATABASE_URL=sqlite:////data/food_manager.db
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
     volumes:
       - backend_data:/data
     ports:
